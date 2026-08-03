@@ -61,7 +61,7 @@ jobs:
         run: |
           cp android-custom/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
           mkdir -p android/app/src/main/java/com/kareostudio
-          cp android-custom/java/com/kareostudio/*.java android/app/src/main/java/com/kareostudio/
+          cp android-custom/res/java/com/kareostudio/*.java android/app/src/main/java/com/kareostudio/
           mkdir -p android/app/src/main/res/values
           cp android-custom/res/values/strings.xml android/app/src/main/res/values/strings.xml
           if [ -d "android-custom/res/mipmap-mdpi" ]; then
