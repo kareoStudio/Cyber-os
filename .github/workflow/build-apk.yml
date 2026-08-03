@@ -1,4 +1,4 @@
-name: Build Cyber OS APK
+name: Build Cyber OS APk
 
 on:
   push:
