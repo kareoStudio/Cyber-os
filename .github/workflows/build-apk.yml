@@ -1,0 +1,90 @@
+name: Build Cyber OS APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install ImageMagick
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y imagemagick
+
+      - name: Generate Square Icons from www/icon/icon.png
+        run: |
+          ICON_SRC="www/icon/icon.png"
+          
+          if [ -f "$ICON_SRC" ]; then
+            echo "✅ Icon found at $ICON_SRC"
+            mkdir -p android-custom/res/mipmap-mdpi
+            mkdir -p android-custom/res/mipmap-hdpi
+            mkdir -p android-custom/res/mipmap-xhdpi
+            mkdir -p android-custom/res/mipmap-xxhdpi
+            mkdir -p android-custom/res/mipmap-xxxhdpi
+            
+            convert "$ICON_SRC" -resize 48x48! android-custom/res/mipmap-mdpi/ic_launcher.png
+            convert "$ICON_SRC" -resize 72x72! android-custom/res/mipmap-hdpi/ic_launcher.png
+            convert "$ICON_SRC" -resize 96x96! android-custom/res/mipmap-xhdpi/ic_launcher.png
+            convert "$ICON_SRC" -resize 144x144! android-custom/res/mipmap-xxhdpi/ic_launcher.png
+            convert "$ICON_SRC" -resize 192x192! android-custom/res/mipmap-xxxhdpi/ic_launcher.png
+            
+            echo "✅ Square icons generated"
+          else
+            echo "⚠️ Icon not found at $ICON_SRC — using default Android icon"
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Add Android platform
+        run: npx cap add android
+
+      - name: Copy custom Android files
+        run: |
+          cp android-custom/AndroidManifest.xml android/app/src/main/AndroidManifest.xml
+          mkdir -p android/app/src/main/java/com/kareostudio
+          cp android-custom/java/com/kareostudio/*.java android/app/src/main/java/com/kareostudio/
+          mkdir -p android/app/src/main/res/values
+          cp android-custom/res/values/strings.xml android/app/src/main/res/values/strings.xml
+          
+          if [ -d "android-custom/res/mipmap-mdpi" ]; then
+            cp -r android-custom/res/mipmap-* android/app/src/main/res/
+          fi
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Grant execute permission
+        run: chmod +x android/gradlew
+
+      - name: Build Debug APK
+        run: cd android && ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cyber-os-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
