@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">Cyber OS</string>
+    <string name="title_activity_main">Cyber OS</string>
+    <string name="package_name">com.kareostudio</string>
+    <string name="custom_url_scheme">com.kareostudio</string>
+</resources>
