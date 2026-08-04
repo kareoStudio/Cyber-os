@@ -15,6 +15,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(CyberVibratePlugin.class);
         registerPlugin(CyberTorchPlugin.class);
         registerPlugin(CyberDevicePlugin.class);
+        registerPlugin(CyberMicrophonePlugin.class);
         super.onCreate(savedInstanceState);
     }
 }
