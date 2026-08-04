@@ -31,7 +31,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y imagemagick
 
-      - name: Generate Square Icons from www/icon/icon.png
+      - name: Generate Android Icons from www/icon/icon.png
         run: |
           ICON_SRC="www/icon/icon.png"
           if [ -f "$ICON_SRC" ]; then
@@ -41,12 +41,37 @@ jobs:
             mkdir -p android-custom/res/mipmap-xhdpi
             mkdir -p android-custom/res/mipmap-xxhdpi
             mkdir -p android-custom/res/mipmap-xxxhdpi
+            mkdir -p android-custom/res/mipmap-anydpi-v26
+
+            # Generate all sizes
             convert "$ICON_SRC" -resize 48x48! android-custom/res/mipmap-mdpi/ic_launcher.png
             convert "$ICON_SRC" -resize 72x72! android-custom/res/mipmap-hdpi/ic_launcher.png
             convert "$ICON_SRC" -resize 96x96! android-custom/res/mipmap-xhdpi/ic_launcher.png
             convert "$ICON_SRC" -resize 144x144! android-custom/res/mipmap-xxhdpi/ic_launcher.png
             convert "$ICON_SRC" -resize 192x192! android-custom/res/mipmap-xxxhdpi/ic_launcher.png
-            echo "Square icons generated successfully"
+
+            # Generate foreground for adaptive icon
+            convert "$ICON_SRC" -resize 108x108! android-custom/res/mipmap-mdpi/ic_launcher_foreground.png
+            convert "$ICON_SRC" -resize 162x162! android-custom/res/mipmap-hdpi/ic_launcher_foreground.png
+            convert "$ICON_SRC" -resize 216x216! android-custom/res/mipmap-xhdpi/ic_launcher_foreground.png
+            convert "$ICON_SRC" -resize 324x324! android-custom/res/mipmap-xxhdpi/ic_launcher_foreground.png
+            convert "$ICON_SRC" -resize 432x432! android-custom/res/mipmap-xxxhdpi/ic_launcher_foreground.png
+
+            # Generate black background
+            convert -size 108x108 xc:black android-custom/res/mipmap-mdpi/ic_launcher_background.png
+            convert -size 162x162 xc:black android-custom/res/mipmap-hdpi/ic_launcher_background.png
+            convert -size 216x216 xc:black android-custom/res/mipmap-xhdpi/ic_launcher_background.png
+            convert -size 324x324 xc:black android-custom/res/mipmap-xxhdpi/ic_launcher_background.png
+            convert -size 432x432 xc:black android-custom/res/mipmap-xxxhdpi/ic_launcher_background.png
+
+            # Create adaptive icon XML
+            echo '<?xml version="1.0" encoding="utf-8"?>' > android-custom/res/mipmap-anydpi-v26/ic_launcher.xml
+            echo '<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">' >> android-custom/res/mipmap-anydpi-v26/ic_launcher.xml
+            echo '    <background android:drawable="@mipmap/ic_launcher_background"/>' >> android-custom/res/mipmap-anydpi-v26/ic_launcher.xml
+            echo '    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>' >> android-custom/res/mipmap-anydpi-v26/ic_launcher.xml
+            echo '</adaptive-icon>' >> android-custom/res/mipmap-anydpi-v26/ic_launcher.xml
+
+            echo "Icons generated successfully"
           else
             echo "Icon not found at $ICON_SRC - using default Android icon"
           fi
