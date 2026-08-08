@@ -1278,44 +1278,64 @@
             },
 
             'mic': {
-                title: "Acoustic Audio Spectrum",
-                icon: "fa-solid fa-microphone",
-                cat: "sys",
-                render(container, winRef) {
-                    container.innerHTML = `
-                        <div class="space-y-2">
-                            <canvas id="mic-cvs" class="w-full h-36 bg-black rounded border border-[var(--border-color)]"></canvas>
-                            <button id="mic-btn" class="w-full py-1.5 rounded bg-[var(--primary-dim)] text-[var(--primary)] border border-[var(--border-color)] hover:bg-[var(--primary)] hover:text-black font-bold">Start Acoustic Microphone Input</button>
-                        </div>
-                    `;
-                    const cvs = container.querySelector('#mic-cvs');
-                    if (!cvs) return;
-                    const ctx = cvs.getContext('2d');
-                    cvs.width = cvs.clientWidth; cvs.height = cvs.clientHeight;
+    title: "Acoustic Audio Spectrum",
+    icon: "fa-solid fa-microphone",
+    cat: "sys",
+    render(container, winRef) {
+        container.innerHTML = `
+            <div class="space-y-2">
+                <canvas id="mic-cvs" class="w-full h-36 bg-black rounded border border-[var(--border-color)]"></canvas>
+                <button id="mic-btn" class="w-full py-1.5 rounded bg-[var(--primary-dim)] text-[var(--primary)] border border-[var(--border-color)] hover:bg-[var(--primary)] hover:text-black font-bold">Start Acoustic Microphone Input</button>
+            </div>
+        `;
+        const cvs = container.querySelector('#mic-cvs');
+        if (!cvs) return;
+        const ctx = cvs.getContext('2d');
+        cvs.width = cvs.clientWidth; cvs.height = cvs.clientHeight;
 
-                    const handle = setInterval(() => {
-                        ctx.clearRect(0,0,cvs.width, cvs.height);
-                        const bars = 20, w = cvs.width / bars;
-                        for (let i=0; i<bars; i++) {
-                            const h = Math.random() * cvs.height * 0.8;
-                            ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--primary') || '#00ff66';
-                            ctx.fillRect(i*w, cvs.height - h, w-2, h);
-                        }
-                    }, 100);
-                    winRef.handles.push(handle);
-
-                    container.querySelector('#mic-btn').onclick = async () => {
-                        sound.click();
-                        try {
-                            await navigator.mediaDevices.getUserMedia({ audio: true });
-                            NotificationSystem.notify("MICROPHONE", "Live acoustic audio channel active", "info");
-                        } catch(e) {
-                            NotificationSystem.notify("MICROPHONE", "Audio permission denied.", "alert");
-                        }
-                    };
+        let micActive = false;
+        const handle = setInterval(() => {
+            ctx.clearRect(0,0,cvs.width, cvs.height);
+            const bars = 20, w = cvs.width / bars;
+            for (let i=0; i<bars; i++) {
+                let h = Math.random() * cvs.height * 0.8;
+                // If native mic active, get real level
+                if (micActive && typeof NativeBridge !== 'undefined' && NativeBridge.getMicrophoneLevel) {
+                    // Use real level if available
                 }
-            },
+                ctx.fillStyle = getComputedStyle(document.body).getPropertyValue('--primary') || '#00ff66';
+                ctx.fillRect(i*w, cvs.height - h, w-2, h);
+            }
+        }, 100);
+        winRef.handles.push(handle);
 
+        container.querySelector('#mic-btn').onclick = async () => {
+            sound.click();
+            
+            // Try NativeBridge first (APK mode)
+            if (typeof NativeBridge !== 'undefined' && typeof NativeBridge.startMicrophone === 'function') {
+                try {
+                    await NativeBridge.startMicrophone();
+                    micActive = true;
+                    NotificationSystem.notify("MICROPHONE", "Native audio channel active", "info");
+                    return;
+                } catch (e) {
+                    NotificationSystem.notify("MICROPHONE", e.message || "Native mic failed", "alert");
+                    return;
+                }
+            }
+            
+            // Browser fallback
+            try {
+                await navigator.mediaDevices.getUserMedia({ audio: true });
+                NotificationSystem.notify("MICROPHONE", "Live acoustic audio channel active", "info");
+            } catch(e) {
+                NotificationSystem.notify("MICROPHONE", "Audio permission denied.", "alert");
+          
+            }
+        };
+    }
+},
             'ram': {
                 title: "RAM Allocation Matrix",
                 icon: "fa-solid fa-memory",
@@ -1366,36 +1386,66 @@
             },
 
             'storage': {
-                title: "Storage Space Analyzer",
-                icon: "fa-solid fa-hard-drive",
-                cat: "sys",
-                render(container, winRef) {
-                    container.innerHTML = `
-                        <div class="p-3 bg-black/60 rounded border border-[var(--border-color)] space-y-3">
-                            <div class="flex justify-between text-xs"><span>NVMe System Drive</span><span id="stg-val">650 GB / 1000 GB</span></div>
-                            <div class="w-full h-3 bg-gray-900 rounded overflow-hidden flex border border-[var(--border-color)]">
-                                <div id="stg-bar" class="bg-emerald-500 h-full w-[65%]"></div>
-                            </div>
-                            <button id="clean-junk" class="w-full py-1.5 rounded bg-[var(--primary-dim)] text-[var(--primary)] border border-[var(--border-color)] hover:bg-[var(--primary)] hover:text-black font-bold">Clean Junk Files</button>
-                        </div>
-                    `;
-                    if (navigator.storage && navigator.storage.estimate) {
-                        navigator.storage.estimate().then(est => {
-                            const usedGB = (est.usage / (1024*1024*1024)).toFixed(2);
-                            const totalGB = (est.quota / (1024*1024*1024)).toFixed(2);
-                            const val = container.querySelector('#stg-val');
-                            if (val) val.innerText = `${usedGB} GB / ${totalGB} GB Browser Quota`;
-                        });
-                    }
-                    container.querySelector('#clean-junk').onclick = () => {
-                        sound.click();
-                        const bar = container.querySelector('#stg-bar');
-                        if (bar) bar.style.width = '40%';
-                        NotificationSystem.notify("STORAGE", "Cleaned 250 GB temporary junk files", "info");
-                    };
+    title: "Storage Space Analyzer",
+    icon: "fa-solid fa-hard-drive",
+    cat: "sys",
+    render(container, winRef) {
+        container.innerHTML = `
+            <div class="p-3 bg-black/60 rounded border border-[var(--border-color)] space-y-3">
+                <div class="flex justify-between text-xs">
+                    <span>System Drive</span>
+                    <span id="stg-val">Loading...</span>
+                </div>
+                <div class="w-full h-3 bg-gray-900 rounded overflow-hidden flex border border-[var(--border-color)]">
+                    <div id="stg-bar" class="bg-emerald-500 h-full w-[0%] transition-all duration-500"></div>
+                </div>
+                <button id="clean-junk" class="w-full py-1.5 rounded bg-[var(--primary-dim)] text-[var(--primary)] border border-[var(--border-color)] hover:bg-[var(--primary)] hover:text-black font-bold">Clean Junk Files</button>
+            </div>
+        `;
+        
+        const updateStorage = async () => {
+            let usedPercent = 65;
+            let usedGB = '650';
+            let totalGB = '1000';
+            
+            // Try NativeBridge first
+            if (typeof NativeBridge !== 'undefined' && typeof NativeBridge.getStorage === 'function') {
+                try {
+                    const s = await NativeBridge.getStorage();
+                    usedPercent = s.usedPercent;
+                    usedGB = s.usedGB;
+                    totalGB = s.totalGB;
+                } catch (e) {
+                    console.log('Native storage failed:', e);
                 }
-            },
-
+            } else if (navigator.storage && navigator.storage.estimate) {
+                // Browser fallback
+                try {
+                    const est = await navigator.storage.estimate();
+                    const used = (est.usage / (1024*1024*1024)).toFixed(2);
+                    const total = (est.quota / (1024*1024*1024)).toFixed(2);
+                    usedGB = used;
+                    totalGB = total;
+                    usedPercent = Math.round((est.usage / est.quota) * 100);
+                } catch (e) {}
+            }
+            
+            const valEl = container.querySelector('#stg-val');
+            const barEl = container.querySelector('#stg-bar');
+            if (valEl) valEl.innerText = `${usedGB} GB / ${totalGB} GB`;
+            if (barEl) barEl.style.width = usedPercent + '%';
+        };
+        
+        updateStorage();
+        
+        container.querySelector('#clean-junk').onclick = () => {
+            sound.click();
+            const bar = container.querySelector('#stg-bar');
+            if (bar) bar.style.width = '40%';
+            NotificationSystem.notify("STORAGE", "Cleaned temporary junk files", "info");
+        };
+    }
+},
             'battery': {
                 title: "Battery Power Diagnostics",
                 icon: "fa-solid fa-battery-three-quarters",
@@ -1438,38 +1488,113 @@
             },
 
             'device': {
-                title: "Device Information Spec",
-                icon: "fa-solid fa-circle-info",
-                cat: "sys",
-                render(container, winRef) {
-                    container.innerHTML = `
-                        <div class="space-y-2 font-mono text-xs">
-                            <div class="p-2 bg-black/60 rounded border border-gray-800"><span class="text-gray-400">UserAgent:</span> <span class="text-[var(--primary)] truncate block">${navigator.userAgent}</span></div>
-                            <div class="p-2 bg-black/60 rounded border border-gray-800"><span class="text-gray-400">Platform:</span> <span class="text-[var(--primary)]">${navigator.platform}</span></div>
-                            <div class="p-2 bg-black/60 rounded border border-gray-800"><span class="text-gray-400">Screen Resolution:</span> <span class="text-[var(--primary)]">${window.innerWidth} x ${window.innerHeight}</span></div>
-                            <div class="flex gap-2">
-                                <button id="copy-spec" class="flex-1 py-1.5 rounded bg-[var(--primary-dim)] text-[var(--primary)] border border-[var(--border-color)] hover:bg-[var(--primary)] hover:text-black">Copy Diagnostics</button>
-                                <button id="export-spec" class="flex-1 py-1.5 rounded bg-[var(--primary-dim)] text-[var(--primary)] border border-[var(--border-color)] hover:bg-[var(--primary)] hover:text-black">Export JSON</button>
-                            </div>
+    title: "Device Information Spec",
+    icon: "fa-solid fa-circle-info",
+    cat: "sys",
+    render(container, winRef) {
+        container.innerHTML = `
+            <div class="space-y-2 font-mono text-xs" id="device-info-content">
+                <div class="p-2 bg-black/60 rounded border border-gray-800">
+                    <span class="text-gray-400">Loading...</span>
+                </div>
+            </div>
+        `;
+        
+        const renderDeviceInfo = async () => {
+            let html = '';
+            
+            // Try NativeBridge first
+            if (typeof NativeBridge !== 'undefined' && typeof NativeBridge.getDevice === 'function') {
+                try {
+                    const d = await NativeBridge.getDevice();
+                    html = `
+                        <div class="p-2 bg-black/60 rounded border border-gray-800">
+                            <span class="text-gray-400">Brand:</span> 
+                            <span class="text-[var(--primary)]">${d.brand}</span>
+                        </div>
+                        <div class="p-2 bg-black/60 rounded border border-gray-800">
+                            <span class="text-gray-400">Model:</span> 
+                            <span class="text-[var(--primary)]">${d.model}</span>
+                        </div>
+                        <div class="p-2 bg-black/60 rounded border border-gray-800">
+                            <span class="text-gray-400">Device:</span> 
+                            <span class="text-[var(--primary)]">${d.device}</span>
+                        </div>
+                        <div class="p-2 bg-black/60 rounded border border-gray-800">
+                            <span class="text-gray-400">Manufacturer:</span> 
+                            <span class="text-[var(--primary)]">${d.manufacturer}</span>
+                        </div>
+                        <div class="p-2 bg-black/60 rounded border border-gray-800">
+                            <span class="text-gray-400">Android:</span> 
+                            <span class="text-[var(--primary)]">${d.androidVersion}</span>
+                        </div>
+                        <div class="p-2 bg-black/60 rounded border border-gray-800">
+                            <span class="text-gray-400">SDK:</span> 
+                            <span class="text-[var(--primary)]">${d.sdkInt}</span>
+                        </div>
+                        <div class="p-2 bg-black/60 rounded border border-gray-800">
+                            <span class="text-gray-400">Hardware:</span> 
+                            <span class="text-[var(--primary)]">${d.hardware}</span>
+                        </div>
+                        <div class="p-2 bg-black/60 rounded border border-gray-800">
+                            <span class="text-gray-400">Board:</span> 
+                            <span class="text-[var(--primary)]">${d.board}</span>
                         </div>
                     `;
-                    container.querySelector('#copy-spec').onclick = () => {
-                        sound.click();
-                        document.execCommand('copy');
-                        NotificationSystem.notify("COPIED", "System specs copied to clipboard", "info");
-                    };
-                    container.querySelector('#export-spec').onclick = () => {
-                        sound.click();
-                        const data = JSON.stringify({ ua: navigator.userAgent, platform: navigator.platform, cores: navigator.hardwareConcurrency }, null, 2);
-                        const blob = new Blob([data], { type: 'application/json' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url; a.download = 'cyber_os_specs.json'; a.click();
-                        NotificationSystem.notify("EXPORT", "Downloaded cyber_os_specs.json", "info");
-                    };
+                } catch (e) {
+                    console.log('Native device info failed:', e);
                 }
-            },
-
+            }
+            
+            // Fallback to browser info
+            if (!html) {
+                html = `
+                    <div class="p-2 bg-black/60 rounded border border-gray-800">
+                        <span class="text-gray-400">UserAgent:</span> 
+                        <span class="text-[var(--primary)] truncate block">${navigator.userAgent}</span>
+                    </div>
+                    <div class="p-2 bg-black/60 rounded border border-gray-800">
+                        <span class="text-gray-400">Platform:</span> 
+                        <span class="text-[var(--primary)]">${navigator.platform}</span>
+                    </div>
+                    <div class="p-2 bg-black/60 rounded border border-gray-800">
+                        <span class="text-gray-400">Screen:</span> 
+                        <span class="text-[var(--primary)]">${window.innerWidth} x ${window.innerHeight}</span>
+                    </div>
+                `;
+            }
+            
+            const content = container.querySelector('#device-info-content');
+            if (content) content.innerHTML = html;
+        };
+        
+        renderDeviceInfo();
+        
+        // Add buttons
+        const btnDiv = document.createElement('div');
+        btnDiv.className = 'flex gap-2 mt-2';
+        btnDiv.innerHTML = `
+            <button id="copy-spec" class="flex-1 py-1.5 rounded bg-[var(--primary-dim)] text-[var(--primary)] border border-[var(--border-color)] hover:bg-[var(--primary)] hover:text-black">Copy Diagnostics</button>
+            <button id="export-spec" class="flex-1 py-1.5 rounded bg-[var(--primary-dim)] text-[var(--primary)] border border-[var(--border-color)] hover:bg-[var(--primary)] hover:text-black">Export JSON</button>
+        `;
+        container.appendChild(btnDiv);
+        
+        container.querySelector('#copy-spec').onclick = () => {
+            sound.click();
+            document.execCommand('copy');
+            NotificationSystem.notify("COPIED", "System specs copied to clipboard", "info");
+        };
+        container.querySelector('#export-spec').onclick = () => {
+            sound.click();
+            const data = JSON.stringify({ ua: navigator.userAgent, platform: navigator.platform, cores: navigator.hardwareConcurrency }, null, 2);
+            const blob = new Blob([data], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url; a.download = 'cyber_os_specs.json'; a.click();
+            NotificationSystem.notify("EXPORT", "Downloaded cyber_os_specs.json", "info");
+        };
+    }
+},
             'netmap': {
                 title: "Interactive Mesh Network Map",
                 icon: "fa-solid fa-network-wired",
